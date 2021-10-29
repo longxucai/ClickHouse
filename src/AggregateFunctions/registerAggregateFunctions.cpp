@@ -54,6 +54,11 @@ void registerAggregateFunctionExponentialMovingAverage(AggregateFunctionFactory 
 void registerAggregateFunctionSparkbar(AggregateFunctionFactory &);
 void registerAggregateFunctionIntervalLengthSum(AggregateFunctionFactory &);
 
+//test
+void registerzAggregateFunctionRetention(AggregateFunctionFactory &);
+void registerAggregateFunctionStrLen(AggregateFunctionFactory &);
+void registerzAggregateFunctionRetention2(AggregateFunctionFactory &);
+
 class AggregateFunctionCombinatorFactory;
 void registerAggregateFunctionCombinatorIf(AggregateFunctionCombinatorFactory &);
 void registerAggregateFunctionCombinatorArray(AggregateFunctionCombinatorFactory &);
@@ -121,6 +126,11 @@ void registerAggregateFunctions()
         registerAggregateFunctionSparkbar(factory);
 
         registerWindowFunctions(factory);
+
+        //test
+        registerzAggregateFunctionRetention(factory);
+        registerAggregateFunctionStrLen(factory);
+        registerzAggregateFunctionRetention2(factory);
     }
 
     {

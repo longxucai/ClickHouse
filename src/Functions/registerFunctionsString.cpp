@@ -40,6 +40,11 @@ void registerFunctionDecodeXMLComponent(FunctionFactory &);
 void registerFunctionExtractTextFromHTML(FunctionFactory &);
 void registerFunctionToStringCutToZero(FunctionFactory &);
 
+//test
+void registerZFunctionToStringCutToZero(FunctionFactory &);
+void registerFunctionStrLen(FunctionFactory &);
+void registerzFunctionsMap(FunctionFactory &);
+
 #if USE_BASE64
 void registerFunctionBase64Encode(FunctionFactory &);
 void registerFunctionBase64Decode(FunctionFactory &);
@@ -85,6 +90,11 @@ void registerFunctionsString(FunctionFactory & factory)
     registerFunctionDecodeXMLComponent(factory);
     registerFunctionExtractTextFromHTML(factory);
     registerFunctionToStringCutToZero(factory);
+
+    //test
+    registerZFunctionToStringCutToZero(factory);
+    registerFunctionStrLen(factory);
+    registerzFunctionsMap(factory);
 
 #if USE_BASE64
     registerFunctionBase64Encode(factory);
