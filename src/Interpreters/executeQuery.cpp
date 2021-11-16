@@ -1015,8 +1015,8 @@ void executeQuery(
     }
 
     /////////////////////////////////////////////
-    String query(begin, end);
-    LOG_INFO(&Poco::Logger::get("executeQuery"), "executeQuery sql>>{}", query);
+    //String query(begin, end);
+    //LOG_INFO(&Poco::Logger::get("executeQuery"), "executeQuery sql>>{}", query);
 
     const char * tmpbegin = begin;
     const char * tmpend = begin;
@@ -1055,12 +1055,13 @@ void executeQuery(
         {
             context->setCurrentQueryId(qid + "-" + std::to_string(i));
             //String query(vbegin[i], vend[i]);
-            LOG_INFO(
+            /* LOG_INFO(
                 &Poco::Logger::get("executeQuery"),
                 "executeQuery sql{}>>{},QueryId={}",
                 i,
                 String(vbegin[i], vend[i]),
                 context->getCurrentQueryId());
+             */
 
             //---------------
             //此处为copy之前处理一条sql的代码，只改了sql的起始位置
