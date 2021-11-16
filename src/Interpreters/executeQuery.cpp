@@ -1014,6 +1014,162 @@ void executeQuery(
         end = begin + parse_buf.size();
     }
 
+    /////////////////////////////////////////////
+    String query(begin, end);
+    LOG_INFO(&Poco::Logger::get("executeQuery"), "executeQuery sql>>{}", query);
+
+    const char * tmpbegin = begin;
+    const char * tmpend = begin;
+
+    std::vector<const char *> vbegin;
+    std::vector<const char *> vend;
+
+    while (tmpend != end)
+    {
+        tmpend++;
+        if (*tmpend == ';')
+        {
+            vbegin.push_back(tmpbegin);
+            vend.push_back(tmpend);
+
+            //string query(tmpbegin, tmpend);
+            //cout<<"1>" << query << endl;
+
+            tmpbegin = tmpend + 1;
+        }
+    }
+    if (tmpbegin != end)
+    {
+        vbegin.push_back(tmpbegin);
+        vend.push_back(tmpend);
+
+        //string query(tmpbegin, tmpend);
+        //cout << "2>" << query << endl;
+    }
+
+    //如果只有1条sql，走之前的逻辑
+    if (vbegin.size()>1)
+    {
+        String qid = context->getCurrentQueryId();
+        for (size_t i = 0; i < vbegin.size(); i++)
+        {
+            context->setCurrentQueryId(qid + "-" + std::to_string(i));
+            //String query(vbegin[i], vend[i]);
+            LOG_INFO(
+                &Poco::Logger::get("executeQuery"),
+                "executeQuery sql{}>>{},QueryId={}",
+                i,
+                String(vbegin[i], vend[i]),
+                context->getCurrentQueryId());
+
+            //---------------
+            //此处为copy之前处理一条sql的代码，只改了sql的起始位置
+            ASTPtr ast;
+            BlockIO streams;
+
+            //##std::tie(ast, streams) = executeQueryImpl(begin, end, context, false, QueryProcessingStage::Complete, &istr);
+            std::tie(ast, streams) = executeQueryImpl(vbegin[i], vend[i], context, false, QueryProcessingStage::Complete, &istr);
+            auto & pipeline = streams.pipeline;
+
+            std::unique_ptr<WriteBuffer> compressed_buffer;
+            try
+            {
+                if (pipeline.pushing())
+                {
+                    auto pipe = getSourceFromASTInsertQuery(ast, true, pipeline.getHeader(), context, nullptr);
+                    pipeline.complete(std::move(pipe));
+                }
+                else if (pipeline.pulling())
+                {
+                    const ASTQueryWithOutput * ast_query_with_output = dynamic_cast<const ASTQueryWithOutput *>(ast.get());
+
+                    WriteBuffer * out_buf = &ostr;
+                    if (ast_query_with_output && ast_query_with_output->out_file)
+                    {
+                        if (!allow_into_outfile)
+                            throw Exception("INTO OUTFILE is not allowed", ErrorCodes::INTO_OUTFILE_NOT_ALLOWED);
+
+                        const auto & out_file
+                            = typeid_cast<const ASTLiteral &>(*ast_query_with_output->out_file).value.safeGet<std::string>();
+
+                        std::string compression_method;
+                        if (ast_query_with_output->compression)
+                        {
+                            const auto & compression_method_node = ast_query_with_output->compression->as<ASTLiteral &>();
+                            compression_method = compression_method_node.value.safeGet<std::string>();
+                        }
+
+                        compressed_buffer = wrapWriteBufferWithCompressionMethod(
+                            std::make_unique<WriteBufferFromFile>(out_file, DBMS_DEFAULT_BUFFER_SIZE, O_WRONLY | O_EXCL | O_CREAT),
+                            chooseCompressionMethod(out_file, compression_method),
+                            /* compression level = */ 3);
+                    }
+
+                    String format_name = ast_query_with_output && (ast_query_with_output->format != nullptr)
+                        ? getIdentifierName(ast_query_with_output->format)
+                        : context->getDefaultFormat();
+
+                    auto out = FormatFactory::instance().getOutputFormatParallelIfPossible(
+                        format_name,
+                        compressed_buffer ? *compressed_buffer : *out_buf,
+                        materializeBlock(pipeline.getHeader()),
+                        context,
+                        {},
+                        output_format_settings);
+
+                    out->setAutoFlush();
+
+                    /// Save previous progress callback if any. TODO Do it more conveniently.
+                    auto previous_progress_callback = context->getProgressCallback();
+
+                    /// NOTE Progress callback takes shared ownership of 'out'.
+                    pipeline.setProgressCallback([out, previous_progress_callback](const Progress & progress) {
+                        if (previous_progress_callback)
+                            previous_progress_callback(progress);
+                        out->onProgress(progress);
+                    });
+
+                    out->setBeforeFinalizeCallback(before_finalize_callback);
+
+                    if (set_result_details)
+                        set_result_details(
+                            context->getClientInfo().current_query_id,
+                            out->getContentType(),
+                            format_name,
+                            DateLUT::instance().getTimeZone());
+
+                    pipeline.complete(std::move(out));
+                }
+                else
+                {
+                    pipeline.setProgressCallback(context->getProgressCallback());
+                }
+
+                if (pipeline.initialized())
+                {
+                    CompletedPipelineExecutor executor(pipeline);
+                    executor.execute();
+                }
+                else
+                {
+                    /// It's possible to have queries without input and output.
+                }
+            }
+            catch (...)
+            {
+                streams.onException();
+                throw;
+            }
+
+            streams.onFinish();
+            //---------------
+        }
+
+        return;
+    }
+    /////////////////////////////////////////////
+
+
     ASTPtr ast;
     BlockIO streams;
 
